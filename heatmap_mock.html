@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客户项目检测热力图</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            overflow-x: auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 24px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .legend-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: #555;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .legend-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+        #chart {
+            min-width: 1100px;
+            height: 860px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 16px;
+            font-size: 14px;
+            color: #555;
+            flex-wrap: wrap;
+        }
+        .stats b {
+            color: #333;
+            font-size: 18px;
+            margin-left: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>客户 × 项目 检测异常热力图</h1>
+        <p class="subtitle">15 个客户 × 20 个检测项目 | 颜色越红表示异常越严重</p>
+        
+        <div class="legend-bar">
+            <div class="legend-item"><div class="legend-dot" style="background:#e57373"></div>严重异常 (0-60)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#ffb74d"></div>警告 (60-80)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#81c784"></div>正常 (80-100)</div>
+        </div>
+
+        <div id="chart"></div>
+
+        <div class="stats">
+            <div>严重异常项目: <b id="dangerCount">0</b></div>
+            <div>警告项目: <b id="warnCount">0</b></div>
+            <div>正常项目: <b id="okCount">0</b></div>
+        </div>
+    </div>
+
+    <script>
+        // 配置：每个单元格的像素大小
+        const CELL_SIZE = 40;
+
+        // 15 个客户
+        const customers = [
+            '客户-A', '客户-B', '客户-C', '客户-D', '客户-E',
+            '客户-F', '客户-G', '客户-H', '客户-I', '客户-J',
+            '客户-K', '客户-L', '客户-M', '客户-N', '客户-O'
+        ];
+
+        // 20 个检测项目
+        const projects = [
+            'SQL注入', 'XSS攻击', '敏感信息', '越权访问', '文件上传',
+            'CSRF防护', '密码强度', '会话管理', '日志审计', '接口鉴权',
+            '数据加密', '防重放攻击', '输入校验', '异常处理', '配置安全',
+            '依赖漏洞', '权限最小化', '安全头部', '验证码机制', '备份策略'
+        ];
+
+        const COLS = projects.length;  // 20
+        const ROWS = customers.length; // 15
+
+        // 计算 grid 尺寸（精确正方形）
+        const GRID_LEFT = 90;
+        const GRID_RIGHT = 40;
+        const GRID_TOP = 30;
+        const GRID_BOTTOM = 140;
+        const GRID_WIDTH = COLS * CELL_SIZE;
+        const GRID_HEIGHT = ROWS * CELL_SIZE;
+
+        // 生成 mock 数据
+        function generateData() {
+            const data = [];
+            let danger = 0, warn = 0, ok = 0;
+
+            const problemCustomers = [2, 5, 8, 11];
+            const problemProjects = [0, 3, 7, 12, 16];
+
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    let value;
+                    const isProblemCustomer = problemCustomers.includes(y);
+                    const isProblemProject = problemProjects.includes(x);
+
+                    if (isProblemCustomer && isProblemProject) {
+                        value = Math.random() < 0.7 ? Math.floor(Math.random() * 55) : Math.floor(Math.random() * 30 + 55);
+                    } else if (isProblemCustomer || isProblemProject) {
+                        value = Math.random() < 0.4 ? Math.floor(Math.random() * 60) : Math.floor(Math.random() * 25 + 75);
+                    } else {
+                        value = Math.random() < 0.85 ? Math.floor(Math.random() * 20 + 80) : Math.floor(Math.random() * 40 + 40);
+                    }
+
+                    data.push([x, y, value]);
+
+                    if (value < 60) danger++;
+                    else if (value < 80) warn++;
+                    else ok++;
+                }
+            }
+
+            document.getElementById('dangerCount').textContent = danger;
+            document.getElementById('warnCount').textContent = warn;
+            document.getElementById('okCount').textContent = ok;
+
+            return data;
+        }
+
+        const chartDom = document.getElementById('chart');
+        const myChart = echarts.init(chartDom);
+        const data = generateData();
+
+        const option = {
+            tooltip: {
+                position: 'top',
+                backgroundColor: 'rgba(255,255,255,0.95)',
+                borderColor: '#ddd',
+                borderWidth: 1,
+                textStyle: { color: '#333' },
+                formatter: function (params) {
+                    const val = params.data[2];
+                    let status = val < 60 ? '<span style="color:#e57373;font-weight:bold">严重异常</span>' :
+                                 val < 80 ? '<span style="color:#f57f17;font-weight:bold">警告</span>' :
+                                 '<span style="color:#66bb6a;font-weight:bold">正常</span>';
+                    return `<div style="font-size:14px;margin-bottom:4px"><b>${customers[params.data[1]]}</b></div>` +
+                           `<div style="font-size:13px;color:#666">${projects[params.data[0]]}</div>` +
+                           `<div style="margin-top:6px;font-size:16px">得分: <b>${val}</b> &nbsp;${status}</div>`;
+                }
+            },
+            grid: {
+                left: GRID_LEFT,
+                right: GRID_RIGHT,
+                top: GRID_TOP,
+                bottom: GRID_BOTTOM,
+                width: GRID_WIDTH,
+                height: GRID_HEIGHT
+            },
+            xAxis: {
+                type: 'category',
+                data: projects,
+                splitArea: { show: true },
+                axisLabel: {
+                    rotate: 45,
+                    fontSize: 12,
+                    color: '#555',
+                    interval: 0
+                },
+                axisLine: { lineStyle: { color: '#ddd' } },
+                axisTick: { alignWithLabel: true }
+            },
+            yAxis: {
+                type: 'category',
+                data: customers,
+                splitArea: { show: true },
+                axisLabel: {
+                    fontSize: 12,
+                    color: '#555'
+                },
+                axisLine: { lineStyle: { color: '#ddd' } },
+                axisTick: { alignWithLabel: true }
+            },
+            visualMap: {
+                type: 'piecewise',
+                orient: 'horizontal',
+                left: 'center',
+                bottom: '30px',
+                itemWidth: 24,
+                itemHeight: 16,
+                itemGap: 16,
+                textStyle: { color: '#666', fontSize: 13 },
+                pieces: [
+                    { min: 80, max: 100, label: '正常 (80-100)', color: '#81c784' },
+                    { min: 60, max: 79, label: '警告 (60-79)', color: '#ffb74d' },
+                    { min: 0, max: 59, label: '严重异常 (0-59)', color: '#e57373' }
+                ]
+            },
+            series: [{
+                type: 'heatmap',
+                data: data,
+                label: {
+                    show: false
+                },
+                emphasis: {
+                    itemStyle: {
+                        shadowBlur: 10,
+                        shadowColor: 'rgba(0, 0, 0, 0.3)',
+                        borderColor: '#333',
+                        borderWidth: 2
+                    }
+                },
+                itemStyle: {
+                    borderWidth: 2,
+                    borderColor: '#fff',
+                    borderRadius: 6
+                }
+            }]
+        };
+
+        myChart.setOption(option);
+
+        // 容器自适应：保持正方形比例，窗口缩小时可横向滚动
+        window.addEventListener('resize', () => myChart.resize());
+    </script>
+</body>
+</html>
